@@ -83,5 +83,54 @@ namespace TaskManagementAPI.Services
             _logger.LogWarning("Task with ID {Id} could not be completed.", taskId);
             return false;
         }
+
+        public IEnumerable<TaskManagementAPI.Models.Task> GetAllTasks()
+        {
+            return _tasks.Values.ToList();  // Return all tasks in the dictionary
+        }
+
+        public bool DeleteTask(int id)
+        {
+            return _tasks.TryRemove(id, out _);  // Remove the task from the dictionary
+        }
+
+        // Check if there's a circular dependency using Depth-First Search (DFS)
+        private bool HasCircularDependency(int taskId, HashSet<int> visited)
+        {
+            if (visited.Contains(taskId))
+            {
+                return true;  // Circular dependency detected
+            }
+
+            // Mark the current task as visited
+            var task = GetTask(taskId);
+            if (task == null)
+            {
+                return false;  // No task found, no circular dependency
+            }
+
+            visited.Add(taskId);
+            foreach (var depId in task.Dependencies)
+            {
+                if (HasCircularDependency(depId, visited)) // Recursively check dependencies
+                {
+                    return true;  // Found a circular dependency
+                }
+            }
+
+            // Backtrack: Remove the task from visited set
+            visited.Remove(taskId);
+            return false;
+        }
+
+        // Validates that a task's dependencies do not form a circular dependency
+        public bool ValidateDependencies(TaskManagementAPI.Models.Task task)
+        {
+            var visited = new HashSet<int>();
+            return !HasCircularDependency(task.Id, visited);  // Returns false if a circular dependency is found
+        }
+
+
+
     }
 }

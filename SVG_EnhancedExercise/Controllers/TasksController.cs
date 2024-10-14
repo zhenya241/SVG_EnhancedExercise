@@ -13,8 +13,8 @@ public class TasksController : ControllerBase
 
     public TasksController(TaskService taskService, ILogger<TasksController> logger)
     {
-        _taskService = taskService;
-        _logger = logger;
+        _taskService = taskService;      // Task service to handle business logic
+        _logger = logger;                // Logger instance to log important events
     }
 
     // POST: /api/tasks
@@ -27,6 +27,27 @@ public class TasksController : ControllerBase
         {
             _logger.LogWarning("Invalid title for task creation. Title length is {Length}.", newTask.Title.Length);
             return BadRequest("Invalid Title");
+        }
+
+        // Validate DueDate (it cannot be in the past)
+        if (newTask.DueDate < DateTime.Now)
+        {
+            _logger.LogWarning("Invalid DueDate for task creation. Task ID: {Id}", newTask.Id);
+            return BadRequest("Due date cannot be in the past.");
+        }
+
+        // Prevent self-dependency
+        if (newTask.Dependencies.Contains(newTask.Id))
+        {
+            _logger.LogWarning("Task with ID {Id} cannot depend on itself.", newTask.Id);
+            return BadRequest("Task cannot depend on itself.");
+        }
+
+        // Validate for circular dependencies
+        if (!_taskService.ValidateDependencies(newTask))
+        {
+            _logger.LogWarning("Circular dependency detected for task ID {Id}.", newTask.Id);
+            return BadRequest("Task has a circular dependency.");
         }
 
         // Add the new task using the TaskService
@@ -52,4 +73,86 @@ public class TasksController : ControllerBase
         _logger.LogWarning("Failed to complete task with ID {Id}.", id);
         return BadRequest("Cannot complete task, dependencies are incomplete or task does not exist.");
     }
+
+    // GET: /api/tasks
+    // Retrieve all tasks
+    [HttpGet]
+    public IActionResult GetAllTasks()
+    {
+        var tasks = _taskService.GetAllTasks();
+        return Ok(tasks);  // Return all tasks in the system
+    }
+
+    // GET: /api/tasks/{id}
+    // Retrieve a task by ID
+    [HttpGet("{id}")]
+    public IActionResult GetTaskById(int id)
+    {
+        var task = _taskService.GetTask(id);   // Fetch task by ID using TaskService
+        if (task == null)
+        {
+            _logger.LogWarning("Task with ID {Id} not found.", id);
+            return NotFound();  // Return 404 if the task does not exist
+        }
+        return Ok(task);    // Return the found task
+    }
+
+    // PUT: /api/tasks/{id}
+    // Update an existing task by ID
+    [HttpPut("{id}")]
+    public IActionResult UpdateTask(int id, [FromBody] TaskManagementAPI.Models.Task updatedTask)
+    {
+        var task = _taskService.GetTask(id);
+        if (task == null)
+        {
+            _logger.LogWarning("Task with ID {Id} not found.", id);
+            return NotFound();  // Return 404 if the task does not exist
+        }
+
+        // Validate DueDate
+        if (updatedTask.DueDate < DateTime.Now)
+        {
+            _logger.LogWarning("Invalid DueDate for task update. Task ID: {Id}", updatedTask.Id);
+            return BadRequest("Due date cannot be in the past.");
+        }
+
+        // Prevent self-dependency
+        if (updatedTask.Dependencies.Contains(updatedTask.Id))
+        {
+            _logger.LogWarning("Task with ID {Id} cannot depend on itself.", updatedTask.Id);
+            return BadRequest("Task cannot depend on itself.");
+        }
+
+        // Validate for circular dependencies
+        if (!_taskService.ValidateDependencies(updatedTask))
+        {
+            _logger.LogWarning("Circular dependency detected for task ID {Id}.", updatedTask.Id);
+            return BadRequest("Task has a circular dependency.");
+        }
+
+        // Update the task properties (e.g., Title, DueDate, Dependencies)
+        task.Title = updatedTask.Title;
+        task.DueDate = updatedTask.DueDate;
+        task.Dependencies = updatedTask.Dependencies;
+
+        return Ok(task);   // Return the updated task
+    }
+
+    // DELETE: /api/tasks/{id}
+    // Delete a task by ID
+    [HttpDelete("{id}")]
+    public IActionResult DeleteTask(int id) 
+    {
+        if (_taskService.DeleteTask(id))
+        {
+            _logger.LogInformation("Task with ID {Id} deleted.", id);
+            return NoContent();  // Return 204 No Content if successful
+        }
+
+        _logger.LogWarning("Task with ID {Id} not found.", id);
+        return NotFound();   // Return 404 if the task does not exist
+    }
+
+
+
 }
