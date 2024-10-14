@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33829.357
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SVG_EnhancedExercise", "SVG_EnhancedExercise\SVG_EnhancedExercise.csproj", "{E79D090A-68F3-4F98-9C6E-868C0A8902B9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E79D090A-68F3-4F98-9C6E-868C0A8902B9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E79D090A-68F3-4F98-9C6E-868C0A8902B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E79D090A-68F3-4F98-9C6E-868C0A8902B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E79D090A-68F3-4F98-9C6E-868C0A8902B9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B8105604-3867-4E43-8DC4-5B85F6DF2C64}
+	EndGlobalSection
+EndGlobal
