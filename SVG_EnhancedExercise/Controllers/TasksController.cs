@@ -22,6 +22,13 @@ public class TasksController : ControllerBase
     [HttpPost]
     public IActionResult CreateTask([FromBody] TaskManagementAPI.Models.Task newTask)
     {
+        // Validate the Task ID field before proceeding (check for empty/negative ID)
+        if (newTask.Id < 0)
+        {
+            _logger.LogWarning("Invalid ID for task creation. Task ID is {TaskId}.", newTask.Id);
+            return BadRequest("Invalid Task ID: Task ID must be greater than 0 and not empty.");
+        }
+
         // Validate the Title field before proceeding
         if (string.IsNullOrEmpty(newTask.Title) || newTask.Title.Length > 100)
         {
@@ -43,15 +50,27 @@ public class TasksController : ControllerBase
             return BadRequest("Task cannot depend on itself.");
         }
 
-        // Validate for circular dependencies
-        if (!_taskService.ValidateDependencies(newTask))
+        // Validate dependencies (check for circular or missing dependencies)
+        int validationResult = _taskService.ValidateDependencies(newTask);
+        if (validationResult == 1)
         {
-            _logger.LogWarning("Circular dependency detected for task ID {Id}.", newTask.Id);
-            return BadRequest("Task has a circular dependency.");
+            _logger.LogWarning("Failed to create task ID {TaskId} due to circular dependency.", newTask.Id);
+            return BadRequest("Circular dependency detected.");
+        }
+        else if (validationResult == -1)
+        {
+            _logger.LogWarning("Failed to create task ID {TaskId} due to missing dependent task.", newTask.Id);
+            return BadRequest("Missing dependent task detected.");
         }
 
+
         // Add the new task using the TaskService
-        _taskService.AddTask(newTask);
+        // Try to add the task, checking for duplicate IDs
+        if (!_taskService.AddTask(newTask))
+        {
+            _logger.LogWarning("Failed to create task with ID {TaskId}, ID already exists.", newTask.Id);
+            return BadRequest($"Task with ID {newTask.Id} already exists.");
+        }
         _logger.LogInformation("Task with ID {Id} was created.", newTask.Id);
         return Ok(newTask);     // Return the created task as the response
     }
@@ -61,17 +80,25 @@ public class TasksController : ControllerBase
     [HttpPut("{id}/complete")]
     public IActionResult MarkTaskComplete(int id)
     {
-        _logger.LogInformation("Received request to complete task with ID {Id}.", id);
+        // First, check if the task exists
+        var task = _taskService.GetTask(id);
+        if (task == null)
+        {
+            _logger.LogWarning("Task with ID {Id} not found.", id);
+            return NotFound($"Task with ID {id} not found.");
+        }
 
-        // Check if the task can be marked as complete
-        if (_taskService.CompleteTask(id)) { 
+        // Check if the task can be marked as complete (e.g., dependencies are satisfied)
+        if (_taskService.CompleteTask(id))
+        {
             _logger.LogInformation("Task with ID {Id} was successfully completed.", id);
-            return Ok();
-         }
+            return Ok();  // Task was completed successfully
+        }
 
-        // Return a BadRequest if the task cannot be completed
-        _logger.LogWarning("Failed to complete task with ID {Id}.", id);
-        return BadRequest("Cannot complete task, dependencies are incomplete or task does not exist.");
+        // If the task exists but can't be completed due to dependencies
+        _logger.LogWarning("Task with ID {Id} cannot be completed. Dependencies are incomplete.", id);
+        return BadRequest("Cannot complete task. Dependencies are incomplete.");
+
     }
 
     // GET: /api/tasks
@@ -123,16 +150,24 @@ public class TasksController : ControllerBase
             return BadRequest("Task cannot depend on itself.");
         }
 
-        // Validate for circular dependencies
-        if (!_taskService.ValidateDependencies(updatedTask))
+        // Validate dependencies (check for circular or missing dependencies)
+        int validationResult = _taskService.ValidateDependencies(updatedTask);
+        if (validationResult == 1)
         {
-            _logger.LogWarning("Circular dependency detected for task ID {Id}.", updatedTask.Id);
-            return BadRequest("Task has a circular dependency.");
+            _logger.LogWarning("Failed to create task ID {TaskId} due to circular dependency.", updatedTask.Id);
+            return BadRequest("Circular dependency detected.");
         }
+        else if (validationResult == -1)
+        {
+            _logger.LogWarning("Failed to create task ID {TaskId} due to missing dependent task.", updatedTask.Id);
+            return BadRequest("Missing dependent task detected.");
+        }
+
 
         // Update the task properties (e.g., Title, DueDate, Dependencies)
         task.Title = updatedTask.Title;
         task.DueDate = updatedTask.DueDate;
+        task.IsCompleted = updatedTask.IsCompleted;
         task.Dependencies = updatedTask.Dependencies;
 
         return Ok(task);   // Return the updated task

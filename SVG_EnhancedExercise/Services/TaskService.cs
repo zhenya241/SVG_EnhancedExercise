@@ -4,10 +4,10 @@ using TaskManagementAPI.Models;
 
 namespace TaskManagementAPI.Services
 {
+   
     // Service to manage tasks, handle task creation, completion, and dependencies
     public class TaskService
     {
-        
         // Thread-safe dictionary to store tasks, keyed by their ID
         private readonly ConcurrentDictionary<int, TaskManagementAPI.Models.Task> _tasks = new ConcurrentDictionary<int, TaskManagementAPI.Models.Task>();
         private readonly ILogger<TaskService> _logger;
@@ -27,17 +27,35 @@ namespace TaskManagementAPI.Services
             if (!_tasks.ContainsKey(id))
             {
                 _logger.LogWarning("Task with ID {Id} was not found.", id);
-                throw new KeyNotFoundException($"Task with ID {id} was not found.");
+                return null;  // Return null to indicate the task was not found
             }
 
             return _tasks[id];  // Return the found task
         }
 
         // Add a new task to the dictionary
-        public void AddTask(TaskManagementAPI.Models.Task task)
+        public bool AddTask(TaskManagementAPI.Models.Task task)
         {
-            _tasks.TryAdd(task.Id, task);
-            _logger.LogInformation("Added new task with ID {Id} and Title: {Title}", task.Id, task.Title);
+            // Check if a task with the same ID already exists
+            if (_tasks.ContainsKey(task.Id))
+            {
+                _logger.LogWarning("Task with ID {TaskId} already exists. Cannot add duplicate.", task.Id);
+                return false;  // Indicate failure to add due to duplicate ID
+            }
+
+            // Try to add the task to the dictionary
+            var result = _tasks.TryAdd(task.Id, task);
+
+            if (result)
+            {
+                _logger.LogInformation("Task with ID {TaskId} added successfully.", task.Id);
+            }
+            else
+            {
+                _logger.LogError("Failed to add task with ID {TaskId}.", task.Id);
+            }
+
+            return result;  // Return true if successfully added, false otherwise
         }
 
         // Check if a task can be marked as complete
@@ -95,39 +113,59 @@ namespace TaskManagementAPI.Services
         }
 
         // Check if there's a circular dependency using Depth-First Search (DFS)
-        private bool HasCircularDependency(int taskId, HashSet<int> visited)
+        private int HasCircularDependency(int taskId, HashSet<int> visited, TaskManagementAPI.Models.Task currentTask)
         {
+            // If the task is already in the visited set, a circular dependency is detected
             if (visited.Contains(taskId))
             {
-                return true;  // Circular dependency detected
+                _logger.LogWarning("Circular dependency detected while checking task ID {TaskId}.", taskId);
+                return 1;  // Circular dependency detected (flag: 1)
             }
 
-            // Mark the current task as visited
-            var task = GetTask(taskId);
+            // Use the currentTask object if taskId matches its ID, otherwise get the task from the dictionary
+            TaskManagementAPI.Models.Task task = (taskId == currentTask.Id) ? currentTask : GetTask(taskId);
+
+            // If the task does not exist (missing dependency), return -1 to indicate missing task
             if (task == null)
             {
-                return false;  // No task found, no circular dependency
+                return -1;  // Missing task detected (flag: -1)
             }
 
+            // Mark the task as visited
             visited.Add(taskId);
+
+            // Recursively check each dependency
             foreach (var depId in task.Dependencies)
             {
-                if (HasCircularDependency(depId, visited)) // Recursively check dependencies
+                int result = HasCircularDependency(depId, visited, currentTask);
+                if (result != 0)  // If a circular dependency or missing dependency is found
                 {
-                    return true;  // Found a circular dependency
+                    return result;  // Return the result (1 for circular, -1 for missing)
                 }
             }
 
-            // Backtrack: Remove the task from visited set
+            // Backtrack: Remove the task from the visited set
             visited.Remove(taskId);
-            return false;
+
+            return 0;  // No issues found (flag: 0)
         }
 
         // Validates that a task's dependencies do not form a circular dependency
-        public bool ValidateDependencies(TaskManagementAPI.Models.Task task)
+        public int ValidateDependencies(TaskManagementAPI.Models.Task task)
         {
+            // If the task has no dependencies, there's nothing to validate
+            if (task.Dependencies == null || !task.Dependencies.Any())
+            {
+                _logger.LogInformation("Task ID {TaskId} has no dependencies to validate.", task.Id);
+                return 0;  // No dependencies, so no issues
+            }
+
+            // Track visited tasks to avoid redundant checks
             var visited = new HashSet<int>();
-            return !HasCircularDependency(task.Id, visited);  // Returns false if a circular dependency is found
+
+            // Check for circular dependencies or missing tasks
+            return HasCircularDependency(task.Id, visited, task);  // Returns 0 (no issues), 1 (circular), or -1 (missing)
+
         }
 
 

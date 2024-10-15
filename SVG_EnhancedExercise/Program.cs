@@ -1,6 +1,10 @@
-//
+using TaskManagementAPI.Services;
+
 // Entry point for the application
 var builder = WebApplication.CreateBuilder(args);
+
+// Register TaskService for dependency injection
+builder.Services.AddSingleton<TaskService>();
 
 // Configure logging
 // Programmer can use Serilog, NLog, etc. for logging to the files too. For this task I used default logging providers. To enable 
