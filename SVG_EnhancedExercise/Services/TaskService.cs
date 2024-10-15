@@ -4,7 +4,14 @@ using TaskManagementAPI.Models;
 
 namespace TaskManagementAPI.Services
 {
-   
+    // Enum to represent the validation result
+    public enum DependencyValidationResult
+    {
+        NoIssues = 0,          // No circular dependencies or missing tasks
+        CircularDependency = 1, // Circular dependency detected
+        MissingTask = -1        // Missing task detected
+    }
+
     // Service to manage tasks, handle task creation, completion, and dependencies
     public class TaskService
     {
@@ -113,13 +120,13 @@ namespace TaskManagementAPI.Services
         }
 
         // Check if there's a circular dependency using Depth-First Search (DFS)
-        private int HasCircularDependency(int taskId, HashSet<int> visited, TaskManagementAPI.Models.Task currentTask)
+        private DependencyValidationResult HasCircularDependency(int taskId, HashSet<int> visited, TaskManagementAPI.Models.Task currentTask)
         {
             // If the task is already in the visited set, a circular dependency is detected
             if (visited.Contains(taskId))
             {
                 _logger.LogWarning("Circular dependency detected while checking task ID {TaskId}.", taskId);
-                return 1;  // Circular dependency detected (flag: 1)
+                return DependencyValidationResult.CircularDependency;  // Circular dependency detected (flag: 1)
             }
 
             // Use the currentTask object if taskId matches its ID, otherwise get the task from the dictionary
@@ -128,7 +135,7 @@ namespace TaskManagementAPI.Services
             // If the task does not exist (missing dependency), return -1 to indicate missing task
             if (task == null)
             {
-                return -1;  // Missing task detected (flag: -1)
+                return DependencyValidationResult.MissingTask;  // Missing task detected (flag: -1)
             }
 
             // Mark the task as visited
@@ -137,7 +144,7 @@ namespace TaskManagementAPI.Services
             // Recursively check each dependency
             foreach (var depId in task.Dependencies)
             {
-                int result = HasCircularDependency(depId, visited, currentTask);
+                var result = HasCircularDependency(depId, visited, currentTask);
                 if (result != 0)  // If a circular dependency or missing dependency is found
                 {
                     return result;  // Return the result (1 for circular, -1 for missing)
@@ -147,17 +154,17 @@ namespace TaskManagementAPI.Services
             // Backtrack: Remove the task from the visited set
             visited.Remove(taskId);
 
-            return 0;  // No issues found (flag: 0)
+            return DependencyValidationResult.NoIssues; // No issues found (flag: 0)
         }
 
         // Validates that a task's dependencies do not form a circular dependency
-        public int ValidateDependencies(TaskManagementAPI.Models.Task task)
+        public DependencyValidationResult ValidateDependencies(TaskManagementAPI.Models.Task task)
         {
             // If the task has no dependencies, there's nothing to validate
             if (task.Dependencies == null || !task.Dependencies.Any())
             {
                 _logger.LogInformation("Task ID {TaskId} has no dependencies to validate.", task.Id);
-                return 0;  // No dependencies, so no issues
+                return DependencyValidationResult.NoIssues;  // No dependencies, so no issues
             }
 
             // Track visited tasks to avoid redundant checks

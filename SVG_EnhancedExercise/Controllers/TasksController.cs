@@ -51,28 +51,26 @@ public class TasksController : ControllerBase
         }
 
         // Validate dependencies (check for circular or missing dependencies)
-        int validationResult = _taskService.ValidateDependencies(newTask);
-        if (validationResult == 1)
+        var validationResult = _taskService.ValidateDependencies(newTask);
+        switch (validationResult)
         {
-            _logger.LogWarning("Failed to create task ID {TaskId} due to circular dependency.", newTask.Id);
-            return BadRequest("Circular dependency detected.");
+            case DependencyValidationResult.CircularDependency:
+                return BadRequest("Circular dependency detected.");
+            case DependencyValidationResult.MissingTask:
+                return BadRequest("A dependent task is missing.");
+            case DependencyValidationResult.NoIssues:
+                // Add the new task using the TaskService
+                // Try to add the task, checking for duplicate IDs
+                if (!_taskService.AddTask(newTask))
+                {
+                    _logger.LogWarning("Failed to create task with ID {TaskId}, ID already exists.", newTask.Id);
+                    return BadRequest($"Task with ID {newTask.Id} already exists.");
+                }
+                _logger.LogInformation("Task with ID {Id} was created.", newTask.Id);
+                return Ok(newTask);  // Return the created task as the response
+            default:
+                return BadRequest("Unknown error.");
         }
-        else if (validationResult == -1)
-        {
-            _logger.LogWarning("Failed to create task ID {TaskId} due to missing dependent task.", newTask.Id);
-            return BadRequest("Missing dependent task detected.");
-        }
-
-
-        // Add the new task using the TaskService
-        // Try to add the task, checking for duplicate IDs
-        if (!_taskService.AddTask(newTask))
-        {
-            _logger.LogWarning("Failed to create task with ID {TaskId}, ID already exists.", newTask.Id);
-            return BadRequest($"Task with ID {newTask.Id} already exists.");
-        }
-        _logger.LogInformation("Task with ID {Id} was created.", newTask.Id);
-        return Ok(newTask);     // Return the created task as the response
     }
 
     // PUT: /api/tasks/{id}/complete
@@ -151,26 +149,27 @@ public class TasksController : ControllerBase
         }
 
         // Validate dependencies (check for circular or missing dependencies)
-        int validationResult = _taskService.ValidateDependencies(updatedTask);
-        if (validationResult == 1)
+        var validationResult = _taskService.ValidateDependencies(updatedTask);
+        switch (validationResult)
         {
-            _logger.LogWarning("Failed to create task ID {TaskId} due to circular dependency.", updatedTask.Id);
-            return BadRequest("Circular dependency detected.");
+            case DependencyValidationResult.CircularDependency:
+                _logger.LogWarning("Failed to update task ID {TaskId} due to circular dependency.", updatedTask.Id);
+                return BadRequest("Circular dependency detected.");
+            case DependencyValidationResult.MissingTask:
+                return BadRequest("A dependent task is missing.");
+            case DependencyValidationResult.NoIssues:
+                // Add the new task using the TaskService
+                // Try to add the task, checking for duplicate IDs
+                // Update the task properties (e.g., Title, DueDate, Dependencies)
+                task.Title = updatedTask.Title;
+                task.DueDate = updatedTask.DueDate;
+                task.IsCompleted = updatedTask.IsCompleted;
+                task.Dependencies = updatedTask.Dependencies;
+
+                return Ok(task);   // Return the updated task
+            default:
+                return BadRequest("Unknown error.");
         }
-        else if (validationResult == -1)
-        {
-            _logger.LogWarning("Failed to create task ID {TaskId} due to missing dependent task.", updatedTask.Id);
-            return BadRequest("Missing dependent task detected.");
-        }
-
-
-        // Update the task properties (e.g., Title, DueDate, Dependencies)
-        task.Title = updatedTask.Title;
-        task.DueDate = updatedTask.DueDate;
-        task.IsCompleted = updatedTask.IsCompleted;
-        task.Dependencies = updatedTask.Dependencies;
-
-        return Ok(task);   // Return the updated task
     }
 
     // DELETE: /api/tasks/{id}
