@@ -56,7 +56,7 @@ namespace SVG_EnhancedExercise_Tests.Services
             var result = _taskService.ValidateDependencies(taskA);  // Check for circular dependencies starting from Task A
 
             // Assert
-            Assert.Equal(1, result);  // Circular dependency detected, so validation should return 1
+            Assert.Equal(DependencyValidationResult.CircularDependency, result);  // Circular dependency detected, so validation should return 1
         }
 
         [Fact]
@@ -72,7 +72,7 @@ namespace SVG_EnhancedExercise_Tests.Services
             var result = _taskService.ValidateDependencies(taskC);  // Task D (ID: 4) is missing
 
             // Assert
-            Assert.Equal(-1, result);  // Missing dependency, so validation should return -1
+            Assert.Equal(DependencyValidationResult.MissingTask, result);  // Missing dependency, so validation should return -1
   
         }
 
